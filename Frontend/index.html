@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nutritional Insights</title>
+    <!-- Tailwind CSS CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.0.0/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body class="bg-gray-100">
+
+    <header class="bg-blue-600 p-4 text-white">
+        <h1 class="text-3xl font-semibold">Nutritional Insights</h1>
+    </header>
+
+    <!-- Metadata bar shown after API call -->
+    <div id="metadataPanel" class="container mx-auto px-6 mt-4">
+        <div class="bg-blue-50 border-l-4 border-blue-600 rounded p-3 flex flex-wrap gap-6 text-sm text-blue-900">
+            <span><strong>Execution Time:</strong> <span id="execTime">—</span></span>
+            <span><strong>Record Count:</strong> <span id="recordCount">—</span></span>
+            <span><strong>Data Source:</strong> <span id="dataSource">—</span></span>
+            <span><strong>Last Updated:</strong> <span id="lastUpdated">—</span></span>
+        </div>
+    </div>
+
+    <main class="container mx-auto p-6">
+        <section class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Explore Nutritional Insights</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="bg-white p-4 shadow-lg rounded-lg">
+                    <h3 class="font-semibold">Bar Chart</h3>
+                    <p class="text-sm text-gray-600">Average macronutrient content by diet type.</p>
+                    <div style="position:relative;height:200px;width:100%;"><canvas id="barChart"></canvas></div>
+                </div>
+
+                <div class="bg-white p-4 shadow-lg rounded-lg">
+                    <h3 class="font-semibold">Scatter Plot</h3>
+                    <p class="text-sm text-gray-600">Nutrient relationships (e.g., protein vs carbs).</p>
+                    <div style="position:relative;height:200px;width:100%;"><canvas id="scatterPlot"></canvas></div>
+                </div>
+
+                <div class="bg-white p-4 shadow-lg rounded-lg">
+                    <h3 class="font-semibold">Heatmap</h3>
+                    <p class="text-sm text-gray-600">Nutrient correlations.</p>
+                    <div id="heatmap" class="w-full h-48"></div>
+                </div>
+
+                <div class="bg-white p-4 shadow-lg rounded-lg">
+                    <h3 class="font-semibold">Pie Chart</h3>
+                    <p class="text-sm text-gray-600">Recipe distribution by diet type.</p>
+                    <div style="position:relative;height:200px;width:100%;"><canvas id="pieChart"></canvas></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Filters and Data Interaction</h2>
+            <div class="flex flex-wrap gap-4">
+                <input id="searchInput" type="text" placeholder="Search by Diet Type" class="p-2 border rounded w-full sm:w-auto" oninput="applyFilters()">
+                <select id="dietDropdown" class="p-2 border rounded w-full sm:w-auto" onchange="applyFilters()">
+                    <option value="all">All Diet Types</option>
+                </select>
+                <button onclick="resetFilters()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">Reset Filters</button>
+            </div>
+        </section>
+
+        <section class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4">API Data Interaction</h2>
+            <div class="flex flex-wrap gap-4">
+                <button id="btnInsights" onclick="fetchData('insights')" class="bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700">Get Nutritional Insights</button>
+                <button id="btnRecipes" onclick="fetchData('recipes')" class="bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700">Get Recipes</button>
+                <button id="btnClusters" onclick="fetchData('clusters')" class="bg-purple-600 text-white py-2 px-4 rounded hover:bg-purple-700">Get Clusters</button>
+            </div>
+        </section>
+
+        <!-- Results Table (shown after API button clicked) -->
+        <section class="mb-8" id="resultsSection">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-2xl font-semibold" id="resultsTitle">Results</h2>
+                <span class="text-sm text-gray-500" id="rowCountLabel"></span>
+            </div>
+            <div class="bg-white shadow-lg rounded-lg overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-blue-50 text-blue-800 text-xs uppercase">
+                        <tr id="tableHead"></tr>
+                    </thead>
+                    <tbody id="tableBody" class="divide-y divide-gray-100"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section>
+            <h2 class="text-2xl font-semibold mb-4">Pagination</h2>
+            <div id="paginationBtns" class="flex justify-center gap-2 mt-4 flex-wrap">
+                <button class="px-3 py-1 bg-gray-300 rounded hover:bg-gray-400">Previous</button>
+                <button class="px-3 py-1 bg-blue-600 text-white rounded">1</button>
+                <button class="px-3 py-1 bg-gray-300 rounded hover:bg-gray-400">2</button>
+                <button class="px-3 py-1 bg-gray-300 rounded hover:bg-gray-400">Next</button>
+            </div>
+            <p class="text-center text-xs text-gray-400 mt-2" id="paginationInfo"></p>
+        </section>
+    </main>
+
+    <footer class="bg-blue-600 p-4 text-white text-center mt-10">
+        <p>&copy; 2025 Nutritional Insights. All Rights Reserved.</p>
+    </footer>
+
+
+<script>
+// ═══════════════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════════════
+const AZURE_BASE = "https://diet-analysis-api-dpadh9d2bbdcf2db.westus2-01.azurewebsites.net/api";
+const API_ENDPOINTS = {
+    insights: `${AZURE_BASE}/nutritionalInsights`,
+    recipes:  `${AZURE_BASE}/recipes`,
+    clusters: `${AZURE_BASE}/clusters`,
+};
+const FORCE_MOCK = false;
+
+// ═══════════════════════════════════════════════════
+//  FIELD ACCESSORS
+//  All 3 endpoints confirmed fields from Person 1's code:
+//  Diet_type, Protein(g), Carbs(g), Fat(g)
+//  Clusters also has: Protein_to_Carbs_ratio, Carbs_to_Fat_ratio
+// ═══════════════════════════════════════════════════
+const F = {
+    dietType:  r => (r["Diet_type"] || r["diet_type"] || "").trim() || "Unknown",
+    protein:   r => parseFloat(r["Protein(g)"]  || 0) || 0,
+    carbs:     r => parseFloat(r["Carbs(g)"]    || 0) || 0,
+    fat:       r => parseFloat(r["Fat(g)"]      || 0) || 0,
+    pcRatio:   r => parseFloat(r["Protein_to_Carbs_ratio"] || 0) || 0,
+    cfRatio:   r => parseFloat(r["Carbs_to_Fat_ratio"]     || 0) || 0,
+    recipe:    r => r["Recipe_name"]  || r["recipe"]  || "",
+    cuisine:   r => r["Cuisine_type"] || r["cuisine"] || "",
+};
+
+// ═══════════════════════════════════════════════════
+//  MOCK DATA — matches exact field names from Person 1
+// ═══════════════════════════════════════════════════
+const MOCK = {
+    // API 1: already averaged per diet type (only 5 rows)
+    insights: { execution_time:"0.12s", record_count:5, data_source:"Mock Data", data:[
+        { Diet_type:"dash",          "Protein(g)":69.3,  "Carbs(g)":160.5, "Fat(g)":101.2 },
+        { Diet_type:"keto",          "Protein(g)":101.3, "Carbs(g)":58.0,  "Fat(g)":153.1 },
+        { Diet_type:"mediterranean", "Protein(g)":101.1, "Carbs(g)":152.9, "Fat(g)":101.4 },
+        { Diet_type:"paleo",         "Protein(g)":88.7,  "Carbs(g)":129.6, "Fat(g)":135.7 },
+        { Diet_type:"vegan",         "Protein(g)":56.2,  "Carbs(g)":254.0, "Fat(g)":103.3 },
+    ]},
+    // API 2: top 5 protein recipes per diet type (~25 rows)
+    recipes: { execution_time:"0.18s", record_count:25, data_source:"Mock Data", data:[
+        { Diet_type:"paleo",         Recipe_name:"Bone Broth",        Cuisine_type:"american",      "Protein(g)":181.55,"Carbs(g)":28.62, "Fat(g)":146.14 },
+        { Diet_type:"paleo",         Recipe_name:"Pork Sides",        Cuisine_type:"south east asian","Protein(g)":165.0, "Carbs(g)":22.0,  "Fat(g)":130.0  },
+        { Diet_type:"paleo",         Recipe_name:"Pumpkin Pie",       Cuisine_type:"american",      "Protein(g)":150.0, "Carbs(g)":18.0,  "Fat(g)":120.0  },
+        { Diet_type:"paleo",         Recipe_name:"Strawberry Guac",   Cuisine_type:"mexican",       "Protein(g)":140.0, "Carbs(g)":15.0,  "Fat(g)":110.0  },
+        { Diet_type:"paleo",         Recipe_name:"Paleo Meatballs",   Cuisine_type:"american",      "Protein(g)":135.0, "Carbs(g)":12.0,  "Fat(g)":105.0  },
+        { Diet_type:"vegan",         Recipe_name:"Lentil Soup",       Cuisine_type:"american",      "Protein(g)":120.0, "Carbs(g)":200.0, "Fat(g)":80.0   },
+        { Diet_type:"vegan",         Recipe_name:"Avocado Toast",     Cuisine_type:"american",      "Protein(g)":110.0, "Carbs(g)":180.0, "Fat(g)":75.0   },
+        { Diet_type:"vegan",         Recipe_name:"Chia Pudding",      Cuisine_type:"american",      "Protein(g)":100.0, "Carbs(g)":160.0, "Fat(g)":70.0   },
+        { Diet_type:"vegan",         Recipe_name:"Tofu Stir Fry",     Cuisine_type:"asian",         "Protein(g)":95.0,  "Carbs(g)":150.0, "Fat(g)":65.0   },
+        { Diet_type:"vegan",         Recipe_name:"Black Bean Tacos",  Cuisine_type:"mexican",       "Protein(g)":90.0,  "Carbs(g)":140.0, "Fat(g)":60.0   },
+        { Diet_type:"keto",          Recipe_name:"Butter Chicken",    Cuisine_type:"indian",        "Protein(g)":200.0, "Carbs(g)":10.0,  "Fat(g)":220.0  },
+        { Diet_type:"keto",          Recipe_name:"Keto Omelette",     Cuisine_type:"american",      "Protein(g)":185.0, "Carbs(g)":8.0,   "Fat(g)":200.0  },
+        { Diet_type:"keto",          Recipe_name:"Bacon Avocado",     Cuisine_type:"american",      "Protein(g)":170.0, "Carbs(g)":6.0,   "Fat(g)":190.0  },
+        { Diet_type:"keto",          Recipe_name:"Salmon Keto",       Cuisine_type:"american",      "Protein(g)":160.0, "Carbs(g)":5.0,   "Fat(g)":180.0  },
+        { Diet_type:"keto",          Recipe_name:"Keto Pizza",        Cuisine_type:"italian",       "Protein(g)":150.0, "Carbs(g)":4.0,   "Fat(g)":170.0  },
+        { Diet_type:"mediterranean", Recipe_name:"Grilled Sea Bass",  Cuisine_type:"mediterranean", "Protein(g)":190.0, "Carbs(g)":50.0,  "Fat(g)":100.0  },
+        { Diet_type:"mediterranean", Recipe_name:"Falafel Bowl",      Cuisine_type:"mediterranean", "Protein(g)":175.0, "Carbs(g)":45.0,  "Fat(g)":90.0   },
+        { Diet_type:"mediterranean", Recipe_name:"Hummus Wrap",       Cuisine_type:"mediterranean", "Protein(g)":160.0, "Carbs(g)":40.0,  "Fat(g)":85.0   },
+        { Diet_type:"mediterranean", Recipe_name:"Tuna Salad",        Cuisine_type:"mediterranean", "Protein(g)":150.0, "Carbs(g)":35.0,  "Fat(g)":80.0   },
+        { Diet_type:"mediterranean", Recipe_name:"Lamb Kebab",        Cuisine_type:"middle eastern","Protein(g)":140.0, "Carbs(g)":30.0,  "Fat(g)":75.0   },
+        { Diet_type:"dash",          Recipe_name:"Dash Veggie Wrap",  Cuisine_type:"american",      "Protein(g)":130.0, "Carbs(g)":120.0, "Fat(g)":70.0   },
+        { Diet_type:"dash",          Recipe_name:"Baked Salmon",      Cuisine_type:"american",      "Protein(g)":120.0, "Carbs(g)":110.0, "Fat(g)":65.0   },
+        { Diet_type:"dash",          Recipe_name:"Quinoa Bowl",       Cuisine_type:"american",      "Protein(g)":110.0, "Carbs(g)":105.0, "Fat(g)":60.0   },
+        { Diet_type:"dash",          Recipe_name:"Turkey Soup",       Cuisine_type:"american",      "Protein(g)":100.0, "Carbs(g)":100.0, "Fat(g)":55.0   },
+        { Diet_type:"dash",          Recipe_name:"Chicken Salad",     Cuisine_type:"american",      "Protein(g)":95.0,  "Carbs(g)":95.0,  "Fat(g)":50.0   },
+    ]},
+    // API 3: all rows + ratio columns
+    clusters: { execution_time:"0.95s", record_count:5, data_source:"Mock Data", data:[
+        { Diet_type:"dash",          "Protein(g)":69.283, "Carbs(g)":160.54, "Fat(g)":101.15, Protein_to_Carbs_ratio:0.432, Carbs_to_Fat_ratio:1.587 },
+        { Diet_type:"keto",          "Protein(g)":101.275,"Carbs(g)":57.97,  "Fat(g)":153.12, Protein_to_Carbs_ratio:1.747, Carbs_to_Fat_ratio:0.379 },
+        { Diet_type:"mediterranean", "Protein(g)":101.11, "Carbs(g)":152.91, "Fat(g)":101.42, Protein_to_Carbs_ratio:0.661, Carbs_to_Fat_ratio:1.508 },
+        { Diet_type:"paleo",         "Protein(g)":88.67,  "Carbs(g)":129.55, "Fat(g)":135.67, Protein_to_Carbs_ratio:0.684, Carbs_to_Fat_ratio:0.955 },
+        { Diet_type:"vegan",         "Protein(g)":56.16,  "Carbs(g)":254.0,  "Fat(g)":103.3,  Protein_to_Carbs_ratio:0.221, Carbs_to_Fat_ratio:2.459 },
+    ]},};
+
+// ═══════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════
+let allRows=[],filteredRows=[],currentPage=1;
+const ROWS_PER_PAGE=10;
+let charts={};
+
+// ═══════════════════════════════════════════════════
+//  INIT — render mock charts on page load
+// ═══════════════════════════════════════════════════
+window.onload = () => {
+    // insights data is already pre-averaged — use directly
+    renderBarChart(MOCK.insights.data, "protein");
+    renderScatterPlot(MOCK.insights.data, "protein");
+    renderHeatmap(MOCK.insights.data, "protein");
+    renderPieChart(MOCK.insights.data);
+};
+
+// ═══════════════════════════════════════════════════
+//  NORMALIZE RESPONSE
+// ═══════════════════════════════════════════════════
+function normalizeResponse(raw) {
+    if (raw && Array.isArray(raw.data))  return raw;
+    if (Array.isArray(raw))              return { execution_time:"N/A", record_count:raw.length, data_source:"Azure Blob Storage", data:raw };
+    for (const k of ["results","items","records","body"]) {
+        if (raw[k] && Array.isArray(raw[k]))
+            return { execution_time:raw.execution_time||"N/A", record_count:raw[k].length, data_source:"Azure Blob Storage", data:raw[k] };
+    }
+    return { execution_time:"N/A", record_count:1, data_source:"Azure Blob Storage", data:[raw] };
+}
+
+// ═══════════════════════════════════════════════════
+//  FETCH — each button does something genuinely different
+// ═══════════════════════════════════════════════════
+async function fetchData(type) {
+    const labels = { insights:"Get Nutritional Insights", recipes:"Get Recipes", clusters:"Get Clusters" };
+    const btn = document.getElementById("btn" + type.charAt(0).toUpperCase() + type.slice(1));
+    btn.textContent = "Loading..."; btn.disabled = true;
+
+    const start = performance.now();
+    try {
+        let result;
+        if (FORCE_MOCK) {
+            await new Promise(r => setTimeout(r, 500));
+            result = MOCK[type];
+        } else {
+            const res = await fetch(API_ENDPOINTS[type]);
+            if (!res.ok) throw new Error("HTTP " + res.status + " " + res.statusText);
+            // Safely parse response — replaces Infinity/-Infinity (invalid JSON from Azure) with 0
+                const rawText = await res.text();
+                const safeText = rawText.replace(/:\s*Infinity/g, ': 0').replace(/:\s*-Infinity/g, ': 0').replace(/:\s*NaN/g, ': 0');
+                result = normalizeResponse(JSON.parse(safeText));
+        }
+
+        const elapsed = ((performance.now()-start)/1000).toFixed(3) + "s";
+        showMetadata(result.execution_time||elapsed, result.record_count||result.data.length, result.data_source||"Azure Blob Storage");
+
+        if (type === "insights") {
+            // Data is already pre-averaged by diet type from Person 1's API
+            // → Use directly for all charts, no grouping needed
+            renderBarChart(result.data, "protein");
+            renderScatterPlot(result.data, "protein");
+            renderHeatmap(result.data, "protein");
+            renderPieChart(result.data);
+            showTable("insights", result.data);
+            populateDropdown(result.data);
+
+        } else if (type === "recipes") {
+            // Top 5 highest-protein recipes per diet (~25 rows)
+            // → Group for bar/scatter/heatmap, raw for pie and table
+            const grouped = groupByDiet(result.data);
+            renderBarChart(grouped, "protein");
+            renderScatterPlot(grouped, "protein");
+            renderHeatmap(grouped, "protein");
+            renderPieChart(result.data); // pie = recipe count per diet
+            showTable("recipes", result.data);
+            populateDropdown(result.data);
+
+        } else if (type === "clusters") {
+            // All rows with Protein_to_Carbs_ratio + Carbs_to_Fat_ratio
+            // → Charts show ratio analysis, not raw macros
+            const grouped = groupByDietRatios(result.data);
+            renderBarChart(grouped, "ratio");
+            renderScatterPlot(result.data, "ratio"); // scatter on raw ratio data
+            renderHeatmap(grouped, "ratio");
+            renderPieChart(result.data);
+            showTable("clusters", result.data);
+            populateDropdown(result.data);
+        }
+
+    } catch(e) { showError(type, e.message); }
+    btn.textContent = labels[type]; btn.disabled = false;
+}
+
+// ═══════════════════════════════════════════════════
+//  GROUPING FUNCTIONS
+// ═══════════════════════════════════════════════════
+
+// Group raw rows by diet type, average protein/carbs/fat
+function groupByDiet(data) {
+    const acc = {};
+    data.forEach(r => {
+        const d = F.dietType(r);
+        if (!acc[d]) acc[d] = { Diet_type:d, protein:[], carbs:[], fat:[] };
+        acc[d].protein.push(F.protein(r));
+        acc[d].carbs.push(F.carbs(r));
+        acc[d].fat.push(F.fat(r));
+    });
+    return Object.values(acc).map(d => ({
+        Diet_type: d.Diet_type,
+        "Protein(g)": avg(d.protein),
+        "Carbs(g)":   avg(d.carbs),
+        "Fat(g)":     avg(d.fat),
+    })).sort((a,b) => a.Diet_type.localeCompare(b.Diet_type));
+}
+
+// Group cluster rows by diet type, average the ratios
+function groupByDietRatios(data) {
+    const acc = {};
+    data.forEach(r => {
+        const d = F.dietType(r);
+        if (!acc[d]) acc[d] = { Diet_type:d, pcRatio:[], cfRatio:[] };
+        acc[d].pcRatio.push(F.pcRatio(r));
+        acc[d].cfRatio.push(F.cfRatio(r));
+    });
+    return Object.values(acc).map(d => ({
+        Diet_type: d.Diet_type,
+        "Protein_to_Carbs_ratio": avg(d.pcRatio),
+        "Carbs_to_Fat_ratio":     avg(d.cfRatio),
+    })).sort((a,b) => a.Diet_type.localeCompare(b.Diet_type));
+}
+
+const avg = arr => arr.length ? Math.round(arr.reduce((a,b)=>a+b,0)/arr.length*1000)/1000 : 0;
+
+// ═══════════════════════════════════════════════════
+//  CHARTS
+//  mode="protein" → show Protein/Carbs/Fat bars
+//  mode="ratio"   → show Protein_to_Carbs / Carbs_to_Fat bars
+// ═══════════════════════════════════════════════════
+const C = ["#3B82F6","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#06B6D4"];
+
+function renderBarChart(data, mode) {
+    if (charts.bar) charts.bar.destroy();
+    const ctx = document.getElementById("barChart").getContext("2d");
+    let datasets, labels;
+    labels = data.map(d => F.dietType(d) || d.Diet_type);
+
+    if (mode === "ratio") {
+        datasets = [
+            { label:"Protein:Carbs Ratio", data:data.map(d=>d["Protein_to_Carbs_ratio"]), backgroundColor:"#3B82F6", borderRadius:3 },
+            { label:"Carbs:Fat Ratio",     data:data.map(d=>d["Carbs_to_Fat_ratio"]),     backgroundColor:"#F59E0B", borderRadius:3 },
+        ];
+    } else {
+        datasets = [
+            { label:"Avg Protein (g)", data:data.map(d=>d["Protein(g)"]), backgroundColor:"#3B82F6", borderRadius:3 },
+            { label:"Avg Carbs (g)",   data:data.map(d=>d["Carbs(g)"]),   backgroundColor:"#10B981", borderRadius:3 },
+            { label:"Avg Fat (g)",     data:data.map(d=>d["Fat(g)"]),     backgroundColor:"#F59E0B", borderRadius:3 },
+        ];
+    }
+
+    charts.bar = new Chart(ctx, {
+        type:"bar",
+        data:{ labels, datasets },
+        options:{
+            responsive:true, maintainAspectRatio:false,
+            plugins:{ legend:{ position:"bottom", labels:{ boxWidth:10, font:{size:9} } } },
+            scales:{
+                x:{ ticks:{ font:{size:8}, maxRotation:30 } },
+                y:{ beginAtZero:true, ticks:{ font:{size:9} }, title:{ display:true, text: mode==="ratio"?"ratio":"grams (g)", font:{size:9} } }
+            }
+        }
+    });
+}
+
+function renderScatterPlot(data, mode) {
+    if (charts.scatter) charts.scatter.destroy();
+    const ctx = document.getElementById("scatterPlot").getContext("2d");
+    let datasets, xLabel, yLabel;
+
+    if (mode === "ratio") {
+        // Scatter: Protein:Carbs ratio vs Carbs:Fat ratio per recipe
+        const grouped = {};
+        data.forEach(r => {
+            const d = F.dietType(r);
+            if (!grouped[d]) grouped[d] = [];
+            grouped[d].push({ x: F.pcRatio(r), y: F.cfRatio(r) });
+        });
+        datasets = Object.entries(grouped).map(([diet,pts],i) => ({
+            label:diet, data:pts, backgroundColor:C[i%C.length], pointRadius:5
+        }));
+        xLabel = "Protein:Carbs Ratio";
+        yLabel = "Carbs:Fat Ratio";
+    } else {
+        // Scatter: Carbs vs Protein per diet type
+        const grouped = {};
+        data.forEach(r => {
+            const d = F.dietType(r) || r.Diet_type;
+            if (!grouped[d]) grouped[d] = [];
+            grouped[d].push({ x: r["Carbs(g)"], y: r["Protein(g)"] });
+        });
+        datasets = Object.entries(grouped).map(([diet,pts],i) => ({
+            label:diet, data:pts, backgroundColor:C[i%C.length], pointRadius:7
+        }));
+        xLabel = "Avg Carbs (g)";
+        yLabel = "Avg Protein (g)";
+    }
+
+    charts.scatter = new Chart(ctx, {
+        type:"scatter",
+        data:{ datasets },
+        options:{
+            responsive:true, maintainAspectRatio:false,
+            plugins:{ legend:{ position:"bottom", labels:{ boxWidth:10, font:{size:9} } } },
+            scales:{
+                x:{ title:{ display:true, text:xLabel, font:{size:9} }, ticks:{font:{size:9}} },
+                y:{ title:{ display:true, text:yLabel, font:{size:9} }, ticks:{font:{size:9}} }
+            }
+        }
+    });
+}
+
+function renderHeatmap(data, mode) {
+    const el = document.getElementById("heatmap");
+    let cols, getVal;
+
+    if (mode === "ratio") {
+        cols = ["Protein_to_Carbs_ratio","Carbs_to_Fat_ratio"];
+        getVal = (d,c) => d[c];
+    } else {
+        cols = ["Protein(g)","Carbs(g)","Fat(g)"];
+        getVal = (d,c) => d[c];
+    }
+
+    const labels = mode==="ratio" ? ["P:C Ratio","C:F Ratio"] : ["Protein","Carbs","Fat"];
+    const maxVal = Math.max(...data.flatMap(d => cols.map(c => parseFloat(getVal(d,c))||0)), 1);
+
+    let h = `<table style="width:100%;font-size:9px;border-collapse:collapse;">
+        <thead><tr><th></th>
+        ${labels.map(l=>`<th style="padding:3px;text-align:center;color:#374151;font-weight:700">${l}</th>`).join("")}
+        </tr></thead><tbody>`;
+
+    data.forEach(d => {
+        const diet = F.dietType(d) || d.Diet_type;
+        h += `<tr><td style="padding:3px 6px 3px 0;font-weight:600;white-space:nowrap;font-size:8px;color:#374151">${diet}</td>`;
+        cols.forEach(c => {
+            const v = Math.round(parseFloat(getVal(d,c))||0 * 100)/100;
+            const i = Math.round((v/maxVal)*200);
+            h += `<td style="padding:4px;text-align:center;background:rgb(${255-i},${255-Math.round(i*0.3)},255);border-radius:3px;font-size:8px">${v}</td>`;
+        });
+        h += "</tr>";
+    });
+    el.innerHTML = h + "</tbody></table>";
+}
+
+function renderPieChart(data) {
+    if (charts.pie) charts.pie.destroy();
+    const counts = {};
+    data.forEach(r => { const d=F.dietType(r)||r.Diet_type; counts[d]=(counts[d]||0)+1; });
+    charts.pie = new Chart(document.getElementById("pieChart").getContext("2d"), {
+        type:"pie",
+        data:{ labels:Object.keys(counts), datasets:[{ data:Object.values(counts), backgroundColor:C }] },
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:"bottom", labels:{ boxWidth:10, font:{size:9} } } } }
+    });
+}
+
+// ═══════════════════════════════════════════════════
+//  TABLE
+// ═══════════════════════════════════════════════════
+function showTable(type, data) {
+    allRows=data; filteredRows=[...data]; currentPage=1;
+    const titles = { insights:"Nutritional Insights", recipes:"Recipes List", clusters:"Cluster Analysis" };
+    document.getElementById("resultsTitle").textContent = titles[type];
+    document.getElementById("resultsSection").style.display = "block";
+    renderTable(); renderPagination();
+}
+function renderTable() {
+    if (!filteredRows.length) {
+        document.getElementById("tableBody").innerHTML = "<tr><td colspan=10 class='p-6 text-center text-gray-400'>No results match your filter.</td></tr>";
+        document.getElementById("rowCountLabel").textContent = "0 rows";
+        return;
+    }
+    const start=(currentPage-1)*ROWS_PER_PAGE, rows=filteredRows.slice(start,start+ROWS_PER_PAGE);
+    const keys=Object.keys(filteredRows[0]), end=Math.min(start+ROWS_PER_PAGE,filteredRows.length);
+    document.getElementById("rowCountLabel").textContent = `Showing ${start+1}–${end} of ${filteredRows.length.toLocaleString()} rows`;
+    document.getElementById("tableHead").innerHTML = keys.map(k=>`<th class="px-4 py-2 text-left">${k}</th>`).join("");
+    document.getElementById("tableBody").innerHTML = rows.map(row=>`<tr class="hover:bg-blue-50">${keys.map(k=>`<td class="px-4 py-2 text-gray-700">${row[k]??""}</td>`).join("")}</tr>`).join("");
+}
+
+// ═══════════════════════════════════════════════════
+//  PAGINATION
+// ═══════════════════════════════════════════════════
+function renderPagination() {
+    const total=Math.ceil(filteredRows.length/ROWS_PER_PAGE), W=5;
+    let s=Math.max(1,currentPage-Math.floor(W/2)), e=Math.min(total,s+W-1);
+    if(e-s<W-1) s=Math.max(1,e-W+1);
+    const pd=currentPage===1, nd=currentPage===total;
+    let h=`<button onclick="goToPage(${currentPage-1})" ${pd?"disabled":""} class="px-3 py-1 rounded ${pd?"bg-gray-200 text-gray-400":"bg-gray-300 hover:bg-gray-400"}">Previous</button>`;
+    if(s>1){h+=`<button onclick="goToPage(1)" class="px-3 py-1 bg-gray-300 rounded hover:bg-gray-400">1</button>`;if(s>2)h+=`<span class="px-2 text-gray-400">...</span>`;}
+    for(let p=s;p<=e;p++) h+=`<button onclick="goToPage(${p})" class="px-3 py-1 rounded ${p===currentPage?"page-active":"bg-gray-300 hover:bg-gray-400"}">${p}</button>`;
+    if(e<total){if(e<total-1)h+=`<span class="px-2 text-gray-400">...</span>`;h+=`<button onclick="goToPage(${total})" class="px-3 py-1 bg-gray-300 rounded hover:bg-gray-400">${total}</button>`;}
+    h+=`<button onclick="goToPage(${currentPage+1})" ${nd?"disabled":""} class="px-3 py-1 rounded ${nd?"bg-gray-200 text-gray-400":"bg-gray-300 hover:bg-gray-400"}">Next</button>`;
+    document.getElementById("paginationBtns").innerHTML=h;
+    document.getElementById("paginationInfo").textContent=`Page ${currentPage} of ${total} — ${filteredRows.length.toLocaleString()} total rows`;
+}
+function goToPage(p) {
+    const total=Math.ceil(filteredRows.length/ROWS_PER_PAGE);
+    if(p<1||p>total) return;
+    currentPage=p; renderTable(); renderPagination();
+    document.getElementById("resultsSection").scrollIntoView({behavior:"smooth"});
+}
+
+// ═══════════════════════════════════════════════════
+//  FILTERS — update both table AND all 4 charts
+// ═══════════════════════════════════════════════════
+function populateDropdown(data) {
+    const diets=[...new Set(data.map(r=>F.dietType(r)).filter(d=>d!=="Unknown"))].sort();
+    const sel=document.getElementById("dietDropdown");
+    sel.innerHTML="<option value='all'>All Diet Types</option>";
+    diets.forEach(d=>{const o=document.createElement("option");o.value=d.toLowerCase();o.textContent=d.charAt(0).toUpperCase()+d.slice(1);sel.appendChild(o);});
+}
+function applyFilters() {
+    const search=document.getElementById("searchInput").value.toLowerCase().trim();
+    const dropdown=document.getElementById("dietDropdown").value;
+    filteredRows=allRows.filter(row=>{
+        const diet=F.dietType(row).toLowerCase(), recipe=F.recipe(row).toLowerCase(), cuisine=F.cuisine(row).toLowerCase();
+        return(!search||diet.includes(search)||recipe.includes(search)||cuisine.includes(search))&&(dropdown==="all"||diet===dropdown||diet.includes(dropdown));
+    });
+    currentPage=1; renderTable(); renderPagination();
+    if(filteredRows.length>0){
+        const grouped=groupByDiet(filteredRows);
+        renderBarChart(grouped,"protein"); renderScatterPlot(grouped,"protein"); renderHeatmap(grouped,"protein"); renderPieChart(filteredRows);
+    }
+}
+function resetFilters() {
+    document.getElementById("searchInput").value="";
+    document.getElementById("dietDropdown").value="all";
+    filteredRows=[...allRows]; currentPage=1;
+    renderTable(); renderPagination();
+    const grouped=groupByDiet(allRows);
+    renderBarChart(grouped,"protein"); renderScatterPlot(grouped,"protein"); renderHeatmap(grouped,"protein"); renderPieChart(allRows);
+}
+
+// ═══════════════════════════════════════════════════
+//  METADATA
+// ═══════════════════════════════════════════════════
+function showMetadata(t,c,s) {
+    document.getElementById("execTime").textContent    = t;
+    document.getElementById("recordCount").textContent = Number(c).toLocaleString();
+    document.getElementById("dataSource").textContent  = s;
+    document.getElementById("lastUpdated").textContent = new Date().toLocaleTimeString();
+    document.getElementById("metadataPanel").style.display = "block";
+}
+
+// ═══════════════════════════════════════════════════
+//  ERROR
+// ═══════════════════════════════════════════════════
+function showError(type, msg) {
+    document.getElementById("resultsSection").style.display="block";
+    document.getElementById("resultsTitle").textContent="Error loading data";
+    document.getElementById("tableHead").innerHTML="<th class='px-4 py-2 text-left text-red-700'>Error</th>";
+    document.getElementById("tableBody").innerHTML=`<tr><td class="px-4 py-4 text-red-600"><strong>${msg}</strong><br><span class="text-xs text-gray-400">URL: ${API_ENDPOINTS[type]}</span><br><button onclick="useMock('${type}')" class="mt-3 px-4 py-1 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600">Load Mock Data Instead</button></td></tr>`;
+}
+function useMock(type) {
+    const r=MOCK[type];
+    showMetadata(r.execution_time, r.record_count, "Mock Data");
+    if(type==="insights"){ renderBarChart(r.data,"protein"); renderScatterPlot(r.data,"protein"); renderHeatmap(r.data,"protein"); renderPieChart(r.data); showTable("insights",r.data); }
+    else if(type==="recipes"){ const g=groupByDiet(r.data); renderBarChart(g,"protein"); renderScatterPlot(g,"protein"); renderHeatmap(g,"protein"); renderPieChart(r.data); showTable("recipes",r.data); }
+    else if(type==="clusters"){ const g=groupByDietRatios(r.data); renderBarChart(g,"ratio"); renderScatterPlot(r.data,"ratio"); renderHeatmap(g,"ratio"); renderPieChart(r.data); showTable("clusters",r.data); }
+    populateDropdown(r.data);
+}
+</script>
+
+</body>
+</html>
