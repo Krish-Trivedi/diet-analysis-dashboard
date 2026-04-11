@@ -313,103 +313,148 @@
 
 </div><!-- end dashboardPage -->
 
+<!-- Firebase SDK -->
+<script type="module">
+    import { initializeApp }
+        from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+             signOut, GoogleAuthProvider, signInWithPopup, onAuthStateChanged }
+        from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getFirestore, doc, setDoc, serverTimestamp }
+        from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey:            "AIzaSyCstDpqlABfnYeBoDmZLKHV0l7JoUZmcAI",
+        authDomain:        "diet-analysis-auth.firebaseapp.com",
+        projectId:         "diet-analysis-auth",
+        storageBucket:     "diet-analysis-auth.firebasestorage.app",
+        messagingSenderId: "1087330333228",
+        appId:             "1:1087330333228:web:abd931be90582e49035789"
+    };
+
+    const firebaseApp    = initializeApp(firebaseConfig);
+    const auth           = getAuth(firebaseApp);
+    const db             = getFirestore(firebaseApp);
+    const googleProvider = new GoogleAuthProvider();
+
+    async function saveUserProfile(user, displayName) {
+        await setDoc(doc(db, "users", user.uid), {
+            userId:      user.uid,
+            email:       user.email,
+            displayName: displayName || user.displayName || user.email.split("@")[0],
+            createdAt:   serverTimestamp()
+        }, { merge: true });
+    }
+
+    // Auto-detect login state on page load
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            const name = user.displayName || user.email.split("@")[0];
+            showDashboard(name);
+        } else {
+            showLoginPage();
+        }
+    });
+
+    window.showLoginPage = function () {
+        document.getElementById("loginPage").style.display    = "flex";
+        document.getElementById("dashboardPage").style.display = "none";
+    };
+
+    window.showDashboard = function (userName) {
+        document.getElementById("loginPage").style.display    = "none";
+        document.getElementById("dashboardPage").style.display = "block";
+        document.getElementById("displayName").textContent     = userName;
+    };
+
+    window.switchTab = function (tab) {
+        const isLogin = tab === "login";
+        document.getElementById("loginForm").style.display    = isLogin ? "block" : "none";
+        document.getElementById("registerForm").style.display = isLogin ? "none"  : "block";
+        document.getElementById("tabLogin").className    = isLogin
+            ? "flex-1 py-2 text-sm font-medium text-blue-600 border-b-2 border-blue-600"
+            : "flex-1 py-2 text-sm font-medium text-gray-400 hover:text-blue-600";
+        document.getElementById("tabRegister").className = !isLogin
+            ? "flex-1 py-2 text-sm font-medium text-blue-600 border-b-2 border-blue-600"
+            : "flex-1 py-2 text-sm font-medium text-gray-400 hover:text-blue-600";
+    };
+
+    window.handleLogin = async function () {
+        const email    = document.getElementById("loginEmail").value.trim();
+        const password = document.getElementById("loginPassword").value.trim();
+        const errEl    = document.getElementById("loginError");
+        errEl.style.display = "none";
+        if (!email || !password) {
+            errEl.textContent = "Please enter email and password.";
+            errEl.style.display = "block";
+            return;
+        }
+        try {
+            await signInWithEmailAndPassword(auth, email, password);
+        } catch (e) {
+            errEl.textContent = friendlyError(e.code);
+            errEl.style.display = "block";
+        }
+    };
+
+    window.handleRegister = async function () {
+        const name     = document.getElementById("registerName").value.trim();
+        const email    = document.getElementById("registerEmail").value.trim();
+        const password = document.getElementById("registerPassword").value.trim();
+        const errEl    = document.getElementById("registerError");
+        errEl.style.display = "none";
+        if (!name || !email || !password) {
+            errEl.textContent = "Please fill in all fields.";
+            errEl.style.display = "block";
+            return;
+        }
+        if (password.length < 6) {
+            errEl.textContent = "Password must be at least 6 characters.";
+            errEl.style.display = "block";
+            return;
+        }
+        try {
+            const cred = await createUserWithEmailAndPassword(auth, email, password);
+            await saveUserProfile(cred.user, name);
+        } catch (e) {
+            errEl.textContent = friendlyError(e.code);
+            errEl.style.display = "block";
+        }
+    };
+
+    window.handleOAuthLogin = async function (provider) {
+        if (provider !== "google") {
+            alert("Only Google OAuth is enabled.");
+            return;
+        }
+        try {
+            const result = await signInWithPopup(auth, googleProvider);
+            await saveUserProfile(result.user, result.user.displayName);
+        } catch (e) {
+            alert("Google login failed: " + friendlyError(e.code));
+        }
+    };
+
+    window.handleLogout = async function () {
+        await signOut(auth);
+    };
+
+    function friendlyError(code) {
+        const map = {
+            "auth/user-not-found":        "No account found with this email.",
+            "auth/wrong-password":        "Incorrect password. Please try again.",
+            "auth/email-already-in-use":  "This email is already registered. Try logging in.",
+            "auth/invalid-email":         "Please enter a valid email address.",
+            "auth/weak-password":         "Password must be at least 6 characters.",
+            "auth/popup-closed-by-user":  "Google login was cancelled.",
+            "auth/network-request-failed":"Network error. Check your connection.",
+            "auth/invalid-credential":    "Incorrect email or password.",
+        };
+        return map[code] || "Something went wrong. Please try again.";
+    }
+</script>
+
 <script>
-
-//  AUTH STATE
-//  Simple session-based auth using sessionStorage
-//  Person 3 replaces this with Firebase Auth
-
-
-// Check if user is already logged in (persists across page refresh)
-window.onload = () => {
-    const savedUser = sessionStorage.getItem("loggedInUser");
-    if (savedUser) {
-        const user = JSON.parse(savedUser);
-        showDashboard(user.name);
-    } else {
-        showLoginPage();
-    }
-};
-
-function showLoginPage() {
-    document.getElementById("loginPage").style.display = "flex";
-    document.getElementById("dashboardPage").style.display = "none";
-}
-
-function showDashboard(userName) {
-    document.getElementById("loginPage").style.display = "none";
-    document.getElementById("dashboardPage").style.display = "block";
-    // Show username in top right corner
-    document.getElementById("displayName").textContent = userName;
-}
-
-// ── Tab switching ──
-function switchTab(tab) {
-    const isLogin = tab === "login";
-    document.getElementById("loginForm").style.display    = isLogin ? "block" : "none";
-    document.getElementById("registerForm").style.display = isLogin ? "none"  : "block";
-    document.getElementById("tabLogin").className    = isLogin
-        ? "flex-1 py-2 text-sm font-medium text-blue-600 border-b-2 border-blue-600"
-        : "flex-1 py-2 text-sm font-medium text-gray-400 hover:text-blue-600";
-    document.getElementById("tabRegister").className = !isLogin
-        ? "flex-1 py-2 text-sm font-medium text-blue-600 border-b-2 border-blue-600"
-        : "flex-1 py-2 text-sm font-medium text-gray-400 hover:text-blue-600";
-}
-
-// ── Email/Password Login ──
-// Person 3 replaces the body of this function with Firebase signInWithEmailAndPassword
-function handleLogin() {
-    const email    = document.getElementById("loginEmail").value.trim();
-    const password = document.getElementById("loginPassword").value.trim();
-    const errEl    = document.getElementById("loginError");
-
-    if (!email || !password) {
-        errEl.textContent = "Please enter email and password.";
-        errEl.style.display = "block";
-        return;
-    }
-
-
-    const name = email.split("@")[0];
-    sessionStorage.setItem("loggedInUser", JSON.stringify({ name, email }));
-    showDashboard(name);
-}
-
-
-function handleRegister() {
-    const name     = document.getElementById("registerName").value.trim();
-    const email    = document.getElementById("registerEmail").value.trim();
-    const password = document.getElementById("registerPassword").value.trim();
-    const errEl    = document.getElementById("registerError");
-
-    if (!name || !email || !password) {
-        errEl.textContent = "Please fill in all fields.";
-        errEl.style.display = "block";
-        return;
-    }
-    if (password.length < 6) {
-        errEl.textContent = "Password must be at least 6 characters.";
-        errEl.style.display = "block";
-        return;
-    }
-
-    sessionStorage.setItem("loggedInUser", JSON.stringify({ name, email }));
-    showDashboard(name);
-}
-
-// ── OAuth Login (Google/GitHub) ──
-function handleOAuthLogin(provider) {
-
-    const name = provider === "google" ? "Google User" : "GitHub User";
-    sessionStorage.setItem("loggedInUser", JSON.stringify({ name, email: name }));
-    showDashboard(name);
-}
-
-// ── Logout ──
-function handleLogout() {
-    sessionStorage.removeItem("loggedInUser");
-    showLoginPage();
-}
 
 
 //  CONFIG
