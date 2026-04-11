@@ -318,7 +318,7 @@
     import { initializeApp }
         from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-             signOut, GoogleAuthProvider, signInWithPopup, onAuthStateChanged }
+             signOut, GoogleAuthProvider, GithubAuthProvider as GitHubProvider, signInWithPopup, onAuthStateChanged }
         from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { getFirestore, doc, setDoc, serverTimestamp }
         from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -422,16 +422,25 @@
         }
     };
 
-    window.handleOAuthLogin = async function (provider) {
-        if (provider !== "google") {
-            alert("Only Google OAuth is enabled.");
+window.handleOAuthLogin = async function (provider) {
+        if (provider === "google") {
+            try {
+                const result = await signInWithPopup(auth, googleProvider);
+                await saveUserProfile(result.user, result.user.displayName);
+            } catch (e) {
+                alert("Google login failed: " + friendlyError(e.code));
+            }
             return;
         }
-        try {
-            const result = await signInWithPopup(auth, googleProvider);
-            await saveUserProfile(result.user, result.user.displayName);
-        } catch (e) {
-            alert("Google login failed: " + friendlyError(e.code));
+        if (provider === "github") {
+            const githubProvider = new GithubAuthProvider();
+            try {
+                const result = await signInWithPopup(auth, githubProvider);
+                await saveUserProfile(result.user, result.user.displayName);
+            } catch (e) {
+                alert("GitHub login failed: " + friendlyError(e.code));
+            }
+            return;
         }
     };
 
