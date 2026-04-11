@@ -5,3 +5,4 @@
 azure-functions
 pandas
 azure-storage-blob
+redis
